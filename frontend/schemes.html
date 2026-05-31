@@ -1,0 +1,104 @@
+<!DOCTYPE html>
+<html lang="en" data-theme="light">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Government Schemes — Jeevika</title>
+  <link rel="stylesheet" href="style.css" />
+  <script src="https://unpkg.com/@phosphor-icons/web@2.1.1"></script>
+  <script src="theme.js"></script>
+</head>
+<body>
+
+  <nav class="topbar">
+    <div style="display:flex;align-items:center;gap:0.75rem;">
+      <a href="dashboard.html" class="back-btn"><i class="ph ph-arrow-left"></i> <span data-key="backBtn">Back</span></a>
+      <span class="topbar-brand">
+        <i class="ph ph-scroll brand-icon"></i>
+        <span class="brand-text" data-key="schemesTitle">Government Schemes</span>
+      </span>
+    </div>
+    <div class="topbar-right">
+      <button class="icon-btn" id="langToggle" data-key="langToggleLabel">हिंदी</button>
+      <button class="icon-btn" id="themeToggle"><i class="ph ph-moon"></i></button>
+    </div>
+  </nav>
+
+  <main class="page-container">
+
+    <div class="search-bar">
+      <input
+        type="text"
+        id="searchInput"
+        data-placeholder-key="schemesSearchPlaceholder"
+        placeholder="Search schemes..."
+        oninput="filterSchemes()"
+      />
+      <i class="ph ph-magnifying-glass" style="position:relative;right:2.5rem;top:0.1rem;color:var(--text-secondary);pointer-events:none;font-size:1.1rem;margin-right:-1.5rem;"></i>
+    </div>
+
+    <div id="schemesContainer"></div>
+
+    <div class="no-results" id="noResults" data-key="schemesNoResults">
+      No schemes found matching your search.
+    </div>
+
+  </main>
+
+  <script src="translations.js"></script>
+  <script src="config.js"></script>
+  <script>
+    const SCHEMES = [
+      { nameKey:'scheme1Name', descKey:'scheme1Desc', eligibilityKey:'scheme1Eligibility', link:'https://pmkisan.gov.in' },
+      { nameKey:'scheme2Name', descKey:'scheme2Desc', eligibilityKey:'scheme2Eligibility', link:'https://pmfby.gov.in' },
+      { nameKey:'scheme3Name', descKey:'scheme3Desc', eligibilityKey:'scheme3Eligibility', link:'https://www.nabard.org' },
+      { nameKey:'scheme4Name', descKey:'scheme4Desc', eligibilityKey:'scheme4Eligibility', link:'https://soilhealth.dac.gov.in' },
+      { nameKey:'scheme5Name', descKey:'scheme5Desc', eligibilityKey:'scheme5Eligibility', link:'https://pmksy.gov.in' },
+      { nameKey:'scheme6Name', descKey:'scheme6Desc', eligibilityKey:'scheme6Eligibility', link:'https://enam.gov.in' }
+    ];
+
+    function renderSchemes() {
+      const container = document.getElementById('schemesContainer');
+      container.innerHTML = '';
+      SCHEMES.forEach(function (scheme) {
+        const name        = t(scheme.nameKey);
+        const desc        = t(scheme.descKey);
+        const eligibility = t(scheme.eligibilityKey);
+        const applyLabel  = t('schemesApplyBtn');
+        const eligLabel   = t('schemesEligibilityLabel');
+        const card = document.createElement('div');
+        card.className = 'card scheme-card';
+        card.setAttribute('data-name', name.toLowerCase());
+        card.setAttribute('data-desc', desc.toLowerCase());
+        card.innerHTML = `
+          <div class="scheme-name">${name}</div>
+          <div class="scheme-desc">${desc}</div>
+          <div class="scheme-eligibility"><span>${eligLabel}</span> ${eligibility}</div>
+          <a href="${scheme.link}" target="_blank" rel="noopener noreferrer" class="btn btn-primary btn-sm">
+            <i class="ph ph-arrow-square-out"></i> ${applyLabel}
+          </a>
+        `;
+        container.appendChild(card);
+      });
+      filterSchemes();
+    }
+
+    function filterSchemes() {
+      const query = document.getElementById('searchInput').value.toLowerCase().trim();
+      const cards = document.querySelectorAll('#schemesContainer .scheme-card');
+      let visible = 0;
+      cards.forEach(function (card) {
+        const match = !query || card.getAttribute('data-name').includes(query) || card.getAttribute('data-desc').includes(query);
+        card.style.display = match ? '' : 'none';
+        if (match) visible++;
+      });
+      document.getElementById('noResults').style.display = visible === 0 ? 'block' : 'none';
+    }
+
+    const _origApplyTranslations = applyTranslations;
+    applyTranslations = function () { _origApplyTranslations(); renderSchemes(); };
+    document.addEventListener('DOMContentLoaded', renderSchemes);
+  </script>
+
+</body>
+</html>

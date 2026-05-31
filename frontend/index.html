@@ -1,0 +1,205 @@
+<!DOCTYPE html>
+<html lang="en" data-theme="light">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Jeevika — Farmer Assistant Platform</title>
+  <link rel="stylesheet" href="style.css" />
+  <script src="https://unpkg.com/@phosphor-icons/web@2.1.1"></script>
+  <script src="theme.js"></script>
+</head>
+<body class="login-page">
+
+  <!-- Top Bar -->
+  <div class="login-topbar">
+    <span class="topbar-brand">
+      <i class="ph ph-leaf brand-icon"></i>
+      <span class="brand-text">Jeevika</span>
+    </span>
+    <div style="display:flex;gap:0.5rem;">
+      <button class="icon-btn" id="langToggle">हिंदी</button>
+      <button class="icon-btn" id="themeToggle" title="Toggle Night Mode"><i class="ph ph-moon"></i></button>
+    </div>
+  </div>
+
+  <!-- Login Card -->
+  <main class="login-main">
+    <div class="login-card">
+
+      <div class="login-logo">
+        <i class="ph ph-leaf login-logo-icon"></i>
+        <h1 id="headingAppName">Jeevika</h1>
+        <p id="headingTagline">Farmer Assistant Platform</p>
+      </div>
+
+      <div class="form-group">
+        <label for="inputName" id="labelName">Full Name</label>
+        <input type="text" id="inputName" placeholder="Enter your full name" autocomplete="name" />
+      </div>
+
+      <div class="form-group">
+        <label for="inputPhone" id="labelPhone">Phone Number</label>
+        <div class="phone-group">
+          <span class="phone-prefix">+91</span>
+          <input type="tel" id="inputPhone" placeholder="10-digit mobile number" maxlength="10" inputmode="numeric" autocomplete="tel-national" />
+        </div>
+      </div>
+
+      <button class="btn btn-primary btn-full" id="btnSendOtp">
+        <i class="ph ph-paper-plane-tilt"></i>
+        <span id="btnSendOtpText">Send OTP</span>
+      </button>
+
+      <div id="otpDisplayBox" class="otp-display-box" style="display:none;">
+        <div class="otp-label" id="otpBoxLabel">Your OTP is</div>
+        <div class="otp-number" id="otpNumber">——</div>
+        <div class="otp-demo-note" id="otpDemoNote">(Demo Mode — in production this will be sent via SMS)</div>
+      </div>
+
+      <div class="otp-entry-section" id="otpEntrySection">
+        <div class="form-group">
+          <label for="inputOtp" id="labelOtp">Enter OTP</label>
+          <input type="number" id="inputOtp" placeholder="6-digit OTP" maxlength="6" inputmode="numeric" />
+        </div>
+        <button class="btn btn-primary btn-full" id="btnVerifyOtp">
+          <i class="ph ph-check-circle"></i>
+          <span id="btnVerifyOtpText">Verify OTP</span>
+        </button>
+      </div>
+
+      <div class="error-msg"   id="errorMsg"></div>
+      <div class="success-msg" id="successMsg"></div>
+
+    </div>
+  </main>
+
+  <script src="translations.js"></script>
+  <script src="config.js"></script>
+
+  <script type="module">
+    import { initializeApp }
+      from "https://www.gstatic.com/firebasejs/10.12.2/firebase-app.js";
+    import { getFirestore, collection, addDoc, serverTimestamp }
+      from "https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js";
+
+    const app = initializeApp(firebaseConfig);
+    const db  = getFirestore(app);
+
+    const UI = {
+      en: {
+        labelName:'Full Name', labelPhone:'Phone Number', labelOtp:'Enter OTP',
+        sendOtp:'Send OTP', sendingOtp:'Generating OTP...', verifyOtp:'Verify OTP',
+        verifyingOtp:'Verifying...', otpBoxLabel:'Your OTP is',
+        demoNote:'(Demo Mode — in production this will be sent via SMS)',
+        errNameRequired:'Please enter your full name.',
+        errPhoneInvalid:'Please enter a valid 10-digit phone number.',
+        errOtpEmpty:'Please enter the OTP shown above.',
+        errWrongOtp:'Incorrect OTP. Please try again.',
+        errSaveFailure:'Login verified but data could not be saved. Continuing...',
+        successLogin:'Login successful! Redirecting...',
+      },
+      hi: {
+        labelName:'पूरा नाम', labelPhone:'फोन नंबर', labelOtp:'OTP दर्ज करें',
+        sendOtp:'OTP भेजें', sendingOtp:'OTP बन रहा है...', verifyOtp:'OTP सत्यापित करें',
+        verifyingOtp:'सत्यापित हो रहा है...', otpBoxLabel:'आपका OTP है',
+        demoNote:'(डेमो मोड — प्रोडक्शन में यह SMS द्वारा भेजा जाएगा)',
+        errNameRequired:'कृपया अपना पूरा नाम दर्ज करें।',
+        errPhoneInvalid:'कृपया 10 अंकों का वैध फोन नंबर दर्ज करें।',
+        errOtpEmpty:'कृपया ऊपर दिखाया गया OTP दर्ज करें।',
+        errWrongOtp:'गलत OTP। कृपया पुनः प्रयास करें।',
+        errSaveFailure:'लॉगिन सत्यापित हुआ लेकिन डेटा सहेजा नहीं जा सका। जारी है...',
+        successLogin:'लॉगिन सफल! पुनर्निर्देशित हो रहा है...',
+      }
+    };
+
+    function getLang() { return localStorage.getItem('jeevikaLang') || 'en'; }
+    function ui(key)   { return UI[getLang()][key] || UI['en'][key] || key; }
+
+    function applyLoginTranslations() {
+      document.getElementById('labelName').textContent        = ui('labelName');
+      document.getElementById('labelPhone').textContent       = ui('labelPhone');
+      document.getElementById('labelOtp').textContent         = ui('labelOtp');
+      document.getElementById('btnSendOtpText').textContent   = ui('sendOtp');
+      document.getElementById('btnVerifyOtpText').textContent = ui('verifyOtp');
+      document.getElementById('otpBoxLabel').textContent      = ui('otpBoxLabel');
+      document.getElementById('otpDemoNote').textContent      = ui('demoNote');
+      document.getElementById('inputPhone').placeholder = getLang() === 'hi' ? '10 अंकों का नंबर' : '10-digit mobile number';
+      document.getElementById('inputName').placeholder  = getLang() === 'hi' ? 'अपना पूरा नाम दर्ज करें' : 'Enter your full name';
+      document.getElementById('inputOtp').placeholder   = getLang() === 'hi' ? '6 अंकों का OTP' : '6-digit OTP';
+      document.getElementById('headingAppName').textContent = getLang() === 'hi' ? 'जीविका' : 'Jeevika';
+      document.getElementById('headingTagline').textContent = getLang() === 'hi' ? 'किसान सहायक मंच' : 'Farmer Assistant Platform';
+    }
+
+    const inputName       = document.getElementById('inputName');
+    const inputPhone      = document.getElementById('inputPhone');
+    const inputOtp        = document.getElementById('inputOtp');
+    const btnSendOtp      = document.getElementById('btnSendOtp');
+    const btnVerifyOtp    = document.getElementById('btnVerifyOtp');
+    const otpDisplayBox   = document.getElementById('otpDisplayBox');
+    const otpNumber       = document.getElementById('otpNumber');
+    const otpEntrySection = document.getElementById('otpEntrySection');
+    const errorMsg        = document.getElementById('errorMsg');
+    const successMsg      = document.getElementById('successMsg');
+
+    let generatedOtp = null;
+
+    function showError(msg)   { errorMsg.textContent = msg; errorMsg.classList.add('visible'); successMsg.classList.remove('visible'); }
+    function showSuccess(msg) { successMsg.textContent = msg; successMsg.classList.add('visible'); errorMsg.classList.remove('visible'); }
+    function clearMessages()  { errorMsg.classList.remove('visible'); successMsg.classList.remove('visible'); }
+
+    btnSendOtp.addEventListener('click', function () {
+      clearMessages();
+      const name  = inputName.value.trim();
+      const phone = inputPhone.value.trim();
+      if (!name)                    { showError(ui('errNameRequired')); inputName.focus(); return; }
+      if (!/^\d{10}$/.test(phone))  { showError(ui('errPhoneInvalid')); inputPhone.focus(); return; }
+
+      btnSendOtp.disabled = true;
+      document.getElementById('btnSendOtpText').textContent = ui('sendingOtp');
+
+      setTimeout(function () {
+        generatedOtp = String(Math.floor(Math.random() * 900000) + 100000);
+        otpNumber.textContent = generatedOtp;
+        otpDisplayBox.style.display = 'block';
+        otpEntrySection.classList.add('visible');
+        inputOtp.focus();
+        btnSendOtp.disabled = false;
+        document.getElementById('btnSendOtpText').textContent = ui('sendOtp');
+      }, 700);
+    });
+
+    btnVerifyOtp.addEventListener('click', async function () {
+      clearMessages();
+      const enteredOtp = inputOtp.value.trim();
+      if (!enteredOtp)              { showError(ui('errOtpEmpty')); inputOtp.focus(); return; }
+      if (enteredOtp !== generatedOtp) { showError(ui('errWrongOtp')); inputOtp.value = ''; inputOtp.focus(); return; }
+
+      btnVerifyOtp.disabled = true;
+      document.getElementById('btnVerifyOtpText').textContent = ui('verifyingOtp');
+
+      const name  = inputName.value.trim();
+      const phone = inputPhone.value.trim();
+
+      try {
+        await addDoc(collection(db, 'users'), {
+          userName:  name, userPhone: '+91' + phone,
+          loginTime: serverTimestamp(), deviceInfo: navigator.userAgent
+        });
+      } catch (e) { console.warn('Firestore save failed:', e); showError(ui('errSaveFailure')); }
+
+      localStorage.setItem('jeevikaUserName',  name);
+      localStorage.setItem('jeevikaUserPhone', '+91' + phone);
+      showSuccess(ui('successLogin'));
+      setTimeout(function () { window.location.href = 'dashboard.html'; }, 1200);
+    });
+
+    inputPhone.addEventListener('keydown', function (e) { if (e.key === 'Enter') btnSendOtp.click(); });
+    inputOtp.addEventListener('keydown',   function (e) { if (e.key === 'Enter') btnVerifyOtp.click(); });
+
+    const _origApply = window.applyTranslations;
+    window.applyTranslations = function () { if (_origApply) _origApply(); applyLoginTranslations(); };
+    applyLoginTranslations();
+  </script>
+
+</body>
+</html>

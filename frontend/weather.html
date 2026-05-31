@@ -1,0 +1,427 @@
+<!DOCTYPE html>
+<html lang="en" data-theme="light">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Weather — Jeevika</title>
+  <link rel="stylesheet" href="style.css" />
+  <script src="https://unpkg.com/@phosphor-icons/web@2.1.1"></script>
+  <script src="theme.js"></script>
+  <style>
+    .weather-form-card {
+      background: var(--card-bg);
+      border-radius: var(--radius-lg);
+      padding: 1.5rem 1.75rem;
+      border: 1px solid var(--border);
+      box-shadow: 0 2px 16px var(--shadow);
+      margin-bottom: 1.5rem;
+    }
+    .weather-inputs {
+      display: flex;
+      gap: 1rem;
+      flex-wrap: wrap;
+      align-items: flex-end;
+    }
+    .weather-inputs .form-group { flex: 1; min-width: 150px; margin-bottom: 0; }
+
+    /* Big weather display card */
+    .weather-main-card {
+      background: linear-gradient(135deg, var(--accent) 0%, #3d6435 60%, #2e4b28 100%);
+      border-radius: var(--radius-xl);
+      padding: 2rem 2.25rem;
+      color: #fff;
+      position: relative;
+      overflow: hidden;
+      margin-bottom: 1.25rem;
+      display: none;
+    }
+    .weather-main-card.visible { display: block; }
+    .weather-main-card::before {
+      content: '';
+      position: absolute;
+      right: -2rem; top: -2rem;
+      width: 160px; height: 160px;
+      background: rgba(255,255,255,0.07);
+      border-radius: 50%;
+    }
+    .weather-location {
+      font-family: 'Plus Jakarta Sans', sans-serif;
+      font-size: 1rem;
+      font-weight: 600;
+      color: rgba(255,255,255,0.75);
+      margin-bottom: 0.2rem;
+      display: flex;
+      align-items: center;
+      gap: 0.4rem;
+    }
+    .weather-temp {
+      font-family: 'Plus Jakarta Sans', sans-serif;
+      font-size: clamp(3rem, 8vw, 4.5rem);
+      font-weight: 800;
+      color: #fff;
+      line-height: 1;
+      margin-bottom: 0.2rem;
+    }
+    .weather-desc {
+      font-size: 1.05rem;
+      color: rgba(255,255,255,0.82);
+      text-transform: capitalize;
+      margin-bottom: 1.25rem;
+    }
+    .weather-icon-big {
+      position: absolute;
+      right: 2rem;
+      top: 50%;
+      transform: translateY(-50%);
+      font-size: 5rem;
+      opacity: 0.25;
+    }
+    .weather-stats {
+      display: flex;
+      gap: 1.25rem;
+      flex-wrap: wrap;
+    }
+    .weather-stat {
+      display: flex;
+      align-items: center;
+      gap: 0.4rem;
+      font-size: 0.88rem;
+      color: rgba(255,255,255,0.8);
+    }
+    .weather-stat i { font-size: 1rem; }
+
+    /* Detail cards row */
+    .weather-details-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(140px, 1fr));
+      gap: 0.85rem;
+      margin-bottom: 1.25rem;
+      display: none;
+    }
+    .weather-details-grid.visible { display: grid; }
+    .weather-detail-card {
+      background: var(--card-bg);
+      border: 1px solid var(--border);
+      border-radius: var(--radius-md);
+      padding: 1rem 1.25rem;
+      text-align: center;
+    }
+    .weather-detail-icon {
+      font-size: 1.5rem;
+      color: var(--accent);
+      display: block;
+      margin-bottom: 0.3rem;
+    }
+    [data-theme="dark"] .weather-detail-icon { color: var(--accent-light); }
+    .weather-detail-label {
+      font-size: 0.73rem;
+      color: var(--text-secondary);
+      text-transform: uppercase;
+      letter-spacing: 0.06em;
+      font-weight: 600;
+      margin-bottom: 0.2rem;
+    }
+    .weather-detail-value {
+      font-family: 'Plus Jakarta Sans', sans-serif;
+      font-size: 1.1rem;
+      font-weight: 700;
+      color: var(--text-primary);
+    }
+
+    /* Farming tip box */
+    .farming-tip {
+      background: rgba(138,107,66,0.08);
+      border-left: 3px solid var(--accent-gold);
+      border-radius: var(--radius-sm);
+      padding: 0.9rem 1.1rem;
+      font-size: 0.88rem;
+      color: var(--text-secondary);
+      display: none;
+      gap: 0.6rem;
+      align-items: flex-start;
+    }
+    .farming-tip.visible { display: flex; }
+    .farming-tip i { color: var(--accent-gold); font-size: 1.1rem; flex-shrink: 0; margin-top: 0.05rem; }
+
+    /* Saved location banner */
+    .saved-location-bar {
+      background: rgba(77,118,67,0.08);
+      border: 1px solid var(--accent-pale);
+      border-radius: var(--radius-sm);
+      padding: 0.6rem 1rem;
+      font-size: 0.85rem;
+      color: var(--accent);
+      display: none;
+      align-items: center;
+      gap: 0.5rem;
+      margin-bottom: 1rem;
+    }
+    .saved-location-bar.visible { display: flex; }
+    [data-theme="dark"] .saved-location-bar { color: var(--accent-light); border-color: var(--accent-pale); }
+
+    .error-panel { display:none; background:rgba(185,64,64,0.08); border:1.5px solid rgba(185,64,64,0.25); border-radius:var(--radius-md); padding:1rem 1.25rem; margin-top:1rem; font-size:0.87rem; color:#b94040; }
+    .error-panel.visible { display:block; }
+    [data-theme="dark"] .error-panel { background:rgba(185,64,64,0.12); color:#f87171; }
+  </style>
+</head>
+<body>
+
+  <nav class="topbar">
+    <div style="display:flex;align-items:center;gap:0.75rem;">
+      <a href="dashboard.html" class="back-btn"><i class="ph ph-arrow-left"></i> <span data-key="backBtn">Back</span></a>
+      <span class="topbar-brand">
+        <i class="ph ph-cloud-sun brand-icon"></i>
+        <span class="brand-text" data-key="weatherTitle">Weather</span>
+      </span>
+    </div>
+    <div class="topbar-right">
+      <button class="icon-btn" id="langToggle" data-key="langToggleLabel">हिंदी</button>
+      <button class="icon-btn" id="themeToggle"><i class="ph ph-moon"></i></button>
+    </div>
+  </nav>
+
+  <main class="page-container" style="max-width:720px;">
+
+    <h2 class="section-title heading-font" data-key="weatherTitle">Weather</h2>
+    <p class="section-subtitle" data-key="weatherSubtitle">Get live weather for your farm location</p>
+
+    <!-- Saved location notice -->
+    <div class="saved-location-bar" id="savedLocationBar">
+      <i class="ph ph-map-pin"></i>
+      <span id="savedLocationText"></span>
+    </div>
+
+    <!-- Input form -->
+    <div class="weather-form-card">
+      <div class="weather-inputs">
+        <div class="form-group">
+          <label for="cityInput" data-key="weatherCityLabel">City / Town</label>
+          <input type="text" id="cityInput" data-placeholder-key="weatherCityPlaceholder" placeholder="e.g. Lucknow" />
+        </div>
+        <div class="form-group">
+          <label for="stateInput" data-key="weatherStateLabel">State</label>
+          <input type="text" id="stateInput" data-placeholder-key="weatherStatePlaceholder" placeholder="e.g. Uttar Pradesh" />
+        </div>
+        <div class="form-group" style="flex:0 0 auto;align-self:flex-end;">
+          <button class="btn btn-primary" id="btnGetWeather">
+            <i class="ph ph-magnifying-glass"></i>
+            <span data-key="weatherGetBtn">Get Weather</span>
+          </button>
+        </div>
+      </div>
+    </div>
+
+    <div class="error-panel" id="errorPanel"></div>
+
+    <!-- Big weather card -->
+    <div class="weather-main-card" id="weatherMainCard">
+      <div class="weather-location">
+        <i class="ph ph-map-pin"></i>
+        <span id="wCity"></span>
+      </div>
+      <div class="weather-temp" id="wTemp">—</div>
+      <div class="weather-desc" id="wDesc">—</div>
+      <div class="weather-stats">
+        <div class="weather-stat"><i class="ph ph-thermometer"></i> <span data-key="weatherFeelsLike">Feels like</span> <strong id="wFeels">—</strong></div>
+        <div class="weather-stat"><i class="ph ph-drop"></i> <span data-key="weatherHumidity">Humidity</span> <strong id="wHumidity">—</strong></div>
+        <div class="weather-stat"><i class="ph ph-wind"></i> <span data-key="weatherWind">Wind</span> <strong id="wWind">—</strong></div>
+      </div>
+      <i class="ph ph-cloud-sun weather-icon-big"></i>
+    </div>
+
+    <!-- Detail cards -->
+    <div class="weather-details-grid" id="weatherDetailsGrid">
+      <div class="weather-detail-card">
+        <i class="ph ph-thermometer-hot weather-detail-icon"></i>
+        <div class="weather-detail-label" data-key="weatherMaxTemp">Max Temp</div>
+        <div class="weather-detail-value" id="wMax">—</div>
+      </div>
+      <div class="weather-detail-card">
+        <i class="ph ph-thermometer-cold weather-detail-icon"></i>
+        <div class="weather-detail-label" data-key="weatherMinTemp">Min Temp</div>
+        <div class="weather-detail-value" id="wMin">—</div>
+      </div>
+      <div class="weather-detail-card">
+        <i class="ph ph-eye weather-detail-icon"></i>
+        <div class="weather-detail-label" data-key="weatherVisibility">Visibility</div>
+        <div class="weather-detail-value" id="wVisibility">—</div>
+      </div>
+      <div class="weather-detail-card">
+        <i class="ph ph-gauge weather-detail-icon"></i>
+        <div class="weather-detail-label" data-key="weatherPressure">Pressure</div>
+        <div class="weather-detail-value" id="wPressure">—</div>
+      </div>
+      <div class="weather-detail-card">
+        <i class="ph ph-sun-horizon weather-detail-icon"></i>
+        <div class="weather-detail-label" data-key="weatherSunrise">Sunrise</div>
+        <div class="weather-detail-value" id="wSunrise">—</div>
+      </div>
+      <div class="weather-detail-card">
+        <i class="ph ph-moon-stars weather-detail-icon"></i>
+        <div class="weather-detail-label" data-key="weatherSunset">Sunset</div>
+        <div class="weather-detail-value" id="wSunset">—</div>
+      </div>
+    </div>
+
+    <!-- Farming tip -->
+    <div class="farming-tip" id="farmingTip">
+      <i class="ph ph-plant"></i>
+      <span id="farmingTipText"></span>
+    </div>
+
+  </main>
+
+  <script src="translations.js"></script>
+  <script src="config.js"></script>
+  <script type="module">
+    import { initializeApp } from 'https://www.gstatic.com/firebasejs/10.12.2/firebase-app.js';
+    import { getFirestore, doc, getDoc, setDoc, serverTimestamp }
+      from 'https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js';
+
+    const app = initializeApp(firebaseConfig);
+    const db  = getFirestore(app);
+
+    const userPhone = localStorage.getItem('jeevikaUserPhone');
+    if (!localStorage.getItem('jeevikaUserName')) {
+      window.location.replace('index.html');
+    }
+
+    const cityInput    = document.getElementById('cityInput');
+    const stateInput   = document.getElementById('stateInput');
+    const btnGet       = document.getElementById('btnGetWeather');
+    const errorPanel   = document.getElementById('errorPanel');
+    const mainCard     = document.getElementById('weatherMainCard');
+    const detailsGrid  = document.getElementById('weatherDetailsGrid');
+    const farmingTip   = document.getElementById('farmingTip');
+    const savedBar     = document.getElementById('savedLocationBar');
+    const savedText    = document.getElementById('savedLocationText');
+
+    // Load saved location from Firestore
+    async function loadSavedLocation() {
+      if (!userPhone) return;
+      try {
+        const snap = await getDoc(doc(db, 'user_profiles', userPhone));
+        if (snap.exists()) {
+          const data = snap.data();
+          if (data.city)  cityInput.value  = data.city;
+          if (data.state) stateInput.value = data.state;
+          if (data.city && data.state) {
+            savedText.textContent = `${t('weatherSavedLocation') || 'Saved location'}: ${data.city}, ${data.state}`;
+            savedBar.classList.add('visible');
+          }
+        }
+      } catch (e) { /* silent */ }
+    }
+
+    // Save location to Firestore
+    async function saveLocation(city, state) {
+      if (!userPhone) return;
+      try {
+        await setDoc(doc(db, 'user_profiles', userPhone), {
+          city, state,
+          updatedAt: serverTimestamp()
+        }, { merge: true });
+      } catch (e) { /* silent */ }
+    }
+
+    // Format unix timestamp → HH:MM
+    function fmtTime(unix) {
+      const d = new Date(unix * 1000);
+      return d.toLocaleTimeString('en-IN', { hour: '2-digit', minute: '2-digit' });
+    }
+
+    // Generate farming tip based on conditions
+    function getFarmingTip(temp, humidity, desc) {
+      const d = desc.toLowerCase();
+      if (d.includes('rain') || d.includes('drizzle'))
+        return t('weatherTipRain') || 'Good time to avoid spraying pesticides. Rain may wash away chemicals.';
+      if (d.includes('thunder'))
+        return t('weatherTipThunder') || 'Avoid fieldwork during thunderstorms. Stay indoors.';
+      if (d.includes('fog') || d.includes('mist'))
+        return t('weatherTipFog') || 'Foggy conditions may promote fungal diseases. Monitor crops closely.';
+      if (temp > 38)
+        return t('weatherTipHot') || 'Very hot day — water crops in early morning or evening to reduce evaporation.';
+      if (temp < 10)
+        return t('weatherTipCold') || 'Cold weather — protect sensitive crops from frost damage.';
+      if (humidity > 80)
+        return t('weatherTipHumid') || 'High humidity — watch for fungal infections. Ensure good crop ventilation.';
+      return t('weatherTipNormal') || 'Good farming conditions today. Ideal for field activities.';
+    }
+
+    btnGet.addEventListener('click', fetchWeather);
+    cityInput.addEventListener('keydown', e => { if (e.key === 'Enter') fetchWeather(); });
+    stateInput.addEventListener('keydown', e => { if (e.key === 'Enter') fetchWeather(); });
+
+    async function fetchWeather() {
+      const city  = cityInput.value.trim();
+      const state = stateInput.value.trim();
+      if (!city) {
+        errorPanel.textContent = t('weatherErrNoCity') || 'Please enter a city name.';
+        errorPanel.classList.add('visible');
+        return;
+      }
+
+      errorPanel.classList.remove('visible');
+      btnGet.disabled = true;
+      btnGet.innerHTML = `<span class="spinner"></span> ${t('weatherFetching') || 'Fetching...'}`;
+
+      const query = state ? `${city},${state},IN` : `${city},IN`;
+      const url = `https://api.openweathermap.org/data/2.5/weather?q=${encodeURIComponent(query)}&appid=${OPENWEATHER_API_KEY}&units=metric`;
+
+      try {
+        const res  = await fetch(url);
+        const data = await res.json();
+
+        if (data.cod !== 200) {
+          throw new Error(data.message || 'city_not_found');
+        }
+
+        // Populate main card
+        document.getElementById('wCity').textContent     = `${data.name}, ${state || 'India'}`;
+        document.getElementById('wTemp').textContent     = `${Math.round(data.main.temp)}°C`;
+        document.getElementById('wDesc').textContent     = data.weather[0].description;
+        document.getElementById('wFeels').textContent    = `${Math.round(data.main.feels_like)}°C`;
+        document.getElementById('wHumidity').textContent = `${data.main.humidity}%`;
+        document.getElementById('wWind').textContent     = `${Math.round(data.wind.speed * 3.6)} km/h`;
+
+        // Detail cards
+        document.getElementById('wMax').textContent        = `${Math.round(data.main.temp_max)}°C`;
+        document.getElementById('wMin').textContent        = `${Math.round(data.main.temp_min)}°C`;
+        document.getElementById('wVisibility').textContent = data.visibility ? `${(data.visibility / 1000).toFixed(1)} km` : '—';
+        document.getElementById('wPressure').textContent   = `${data.main.pressure} hPa`;
+        document.getElementById('wSunrise').textContent    = fmtTime(data.sys.sunrise);
+        document.getElementById('wSunset').textContent     = fmtTime(data.sys.sunset);
+
+        // Farming tip
+        document.getElementById('farmingTipText').textContent =
+          getFarmingTip(data.main.temp, data.main.humidity, data.weather[0].description);
+
+        mainCard.classList.add('visible');
+        detailsGrid.classList.add('visible');
+        farmingTip.classList.add('visible');
+
+        // Save to Firebase + update saved bar
+        if (city) {
+          await saveLocation(city, state);
+          savedText.textContent = `${t('weatherSavedLocation') || 'Saved location'}: ${city}${state ? ', ' + state : ''}`;
+          savedBar.classList.add('visible');
+        }
+
+      } catch (err) {
+        const msg = err.message === 'city_not_found' || err.message?.includes('not found')
+          ? (t('weatherErrNotFound') || 'City not found. Check spelling and try again.')
+          : (t('weatherErrApi')     || 'Could not fetch weather. Check your API key or try again.');
+        errorPanel.textContent = msg;
+        errorPanel.classList.add('visible');
+      } finally {
+        btnGet.disabled = false;
+        btnGet.innerHTML = `<i class="ph ph-magnifying-glass"></i> <span data-key="weatherGetBtn">${t('weatherGetBtn') || 'Get Weather'}</span>`;
+      }
+    }
+
+    // On load, restore saved location
+    loadSavedLocation();
+  </script>
+
+</body>
+</html>

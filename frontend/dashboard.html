@@ -1,0 +1,253 @@
+<!DOCTYPE html>
+<html lang="en" data-theme="light">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Dashboard — Jeevika</title>
+  <link rel="stylesheet" href="style.css" />
+  <script src="https://unpkg.com/@phosphor-icons/web@2.1.1"></script>
+  <script src="theme.js"></script>
+</head>
+<body>
+
+  <nav class="topbar">
+    <div style="display:flex;align-items:center;gap:1rem;flex-wrap:wrap;">
+      <span class="topbar-brand">
+        <i class="ph ph-leaf brand-icon"></i>
+        <span class="brand-text" data-key="appName">Jeevika</span>
+      </span>
+      <span class="topbar-welcome" id="welcomeText">
+        <span data-key="dashWelcome">Welcome,</span>
+        <strong id="userName"></strong>
+      </span>
+    </div>
+    <div class="topbar-right">
+
+      <!-- Weather Widget -->
+      <div class="weather-topbar-widget" id="weatherTopbar">
+        <button class="weather-chip" id="weatherChip" style="display:none;">
+          <i class="ph ph-cloud-sun" id="wIcon"></i>
+          <span class="w-temp" id="wTempSpan">--°C</span>
+          <span class="w-sep">·</span>
+          <span class="w-desc" id="wDescSpan"></span>
+          <span class="w-city" id="wCitySpan"></span>
+          <i class="ph ph-caret-down" style="font-size:0.7rem;opacity:0.55;margin-left:2px;"></i>
+        </button>
+        <button class="icon-btn" id="weatherSetBtn">
+          <i class="ph ph-map-pin"></i> <span>Set Location</span>
+        </button>
+        <div class="weather-dropdown" id="weatherDropdown">
+          <p class="weather-dropdown-title"><i class="ph ph-map-pin"></i> Your Farm Location</p>
+          <input type="text" id="wdCity" placeholder="City / Town (e.g. Lucknow)" />
+          <input type="text" id="wdState" placeholder="State (e.g. Uttar Pradesh)" style="margin-top:0.5rem;" />
+          <button class="btn btn-primary btn-full" id="wdSaveBtn" style="margin-top:0.75rem;font-size:0.82rem;padding:9px 16px;">
+            <i class="ph ph-paper-plane-tilt"></i> Save &amp; Show Weather
+          </button>
+          <div class="weather-dropdown-error" id="wdError"></div>
+        </div>
+      </div>
+
+      <button class="icon-btn" id="langToggle" data-key="langToggleLabel">हिंदी</button>
+      <button class="icon-btn" id="themeToggle"><i class="ph ph-moon"></i></button>
+      <button class="logout-btn" id="btnLogout">
+        <i class="ph ph-sign-out"></i>
+        <span data-key="dashLogout">Logout</span>
+      </button>
+    </div>
+  </nav>
+
+  <main class="page-container">
+
+    <!-- Hero greeting -->
+    <div class="dashboard-hero fade-in-up">
+      <div class="dashboard-hero-greeting" id="heroGreeting">Good day</div>
+      <div class="dashboard-hero-sub" data-key="dashSubtitle">What would you like to do today?</div>
+    </div>
+
+    <!-- Module cards -->
+    <div class="cards-grid">
+
+      <!-- Government Schemes -->
+      <a href="schemes.html" class="card module-card" style="text-decoration:none;color:inherit;">
+        <div class="card-icon card-icon-schemes">
+          <i class="ph ph-scroll"></i>
+        </div>
+        <div class="card-title" data-key="dashCard1Title">Government Schemes</div>
+        <div class="card-desc" data-key="dashCard1Desc">Explore farmer welfare schemes by the government</div>
+        <div class="card-footer">
+          <span class="btn btn-primary btn-full" data-key="openBtn">Open</span>
+        </div>
+      </a>
+
+      <!-- Mandi Bhaav -->
+      <a href="market.html" class="card module-card" style="text-decoration:none;color:inherit;">
+        <div class="card-icon card-icon-market">
+          <i class="ph ph-chart-line-up"></i>
+        </div>
+        <div class="card-title" data-key="dashCard2Title">Mandi Bhaav</div>
+        <div class="card-desc" data-key="dashCard2Desc">Check latest crop market prices by state</div>
+        <div class="card-footer">
+          <span class="btn btn-primary btn-full" data-key="openBtn">Open</span>
+        </div>
+      </a>
+
+      <!-- Disease Detection -->
+      <a href="disease.html" class="card module-card" style="text-decoration:none;color:inherit;">
+        <div class="card-icon card-icon-disease">
+          <i class="ph ph-stethoscope"></i>
+        </div>
+        <div class="card-title" data-key="dashCard3Title">Disease Detection</div>
+        <div class="card-desc" data-key="dashCard3Desc">Upload crop image to detect disease</div>
+        <div class="card-footer">
+          <span class="btn btn-primary btn-full" data-key="openBtn">Open</span>
+        </div>
+      </a>
+
+      <!-- Farmer Community -->
+      <a href="community.html" class="card module-card" style="text-decoration:none;color:inherit;">
+        <div class="card-icon card-icon-community">
+          <i class="ph ph-users-three"></i>
+        </div>
+        <div class="card-title" data-key="dashCard4Title">Farmer Community</div>
+        <div class="card-desc" data-key="dashCard4Desc">Connect with farmers, share problems and solutions</div>
+        <div class="card-footer">
+          <span class="btn btn-primary btn-full" data-key="openBtn">Open</span>
+        </div>
+      </a>
+
+    </div>
+  </main>
+
+  <script src="translations.js"></script>
+  <script src="config.js"></script>
+  <script type="module">
+    import { initializeApp } from 'https://www.gstatic.com/firebasejs/10.12.2/firebase-app.js';
+    import { getFirestore, doc, getDoc, setDoc, serverTimestamp }
+      from 'https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js';
+
+    const fbApp = initializeApp(firebaseConfig);
+    const db    = getFirestore(fbApp);
+    const phone = localStorage.getItem('jeevikaUserPhone');
+
+    const weatherChip     = document.getElementById('weatherChip');
+    const weatherSetBtn   = document.getElementById('weatherSetBtn');
+    const weatherDropdown = document.getElementById('weatherDropdown');
+    const wdCity          = document.getElementById('wdCity');
+    const wdState         = document.getElementById('wdState');
+    const wdSaveBtn       = document.getElementById('wdSaveBtn');
+    const wdError         = document.getElementById('wdError');
+
+    // Open/close dropdown
+    [weatherChip, weatherSetBtn].forEach(el =>
+      el.addEventListener('click', e => { e.stopPropagation(); weatherDropdown.classList.toggle('open'); })
+    );
+    document.addEventListener('click', () => weatherDropdown.classList.remove('open'));
+    weatherDropdown.addEventListener('click', e => e.stopPropagation());
+
+    // Map OWM condition id → Phosphor icon
+    function getPhIcon(id) {
+      if (id >= 200 && id < 300) return 'ph-cloud-lightning';
+      if (id >= 300 && id < 600) return 'ph-cloud-rain';
+      if (id >= 600 && id < 700) return 'ph-snowflake';
+      if (id >= 700 && id < 800) return 'ph-cloud-fog';
+      if (id === 800)             return 'ph-sun';
+      if (id === 801)             return 'ph-cloud-sun';
+      return 'ph-cloud';
+    }
+
+    async function fetchAndShowWeather(city, state) {
+      const query = state ? `${city},IN` : `${city},IN`;
+      const url = `https://api.openweathermap.org/data/2.5/weather?q=${encodeURIComponent(city + (state ? ',' + state : '') + ',IN')}&appid=${OPENWEATHER_API_KEY}&units=metric`;
+      const res  = await fetch(url);
+      const data = await res.json();
+      if (data.cod !== 200) throw new Error(data.message);
+
+      const temp = Math.round(data.main.temp);
+      const desc = data.weather[0].description;
+      const iconCls = getPhIcon(data.weather[0].id);
+
+      document.getElementById('wIcon').className = `ph ${iconCls}`;
+      document.getElementById('wTempSpan').textContent = `${temp}°C`;
+      document.getElementById('wDescSpan').textContent = desc.charAt(0).toUpperCase() + desc.slice(1);
+      document.getElementById('wCitySpan').textContent = `· ${data.name}`;
+
+      weatherChip.style.display   = 'inline-flex';
+      weatherSetBtn.style.display = 'none';
+    }
+
+    wdSaveBtn.addEventListener('click', async () => {
+      const city  = wdCity.value.trim();
+      const state = wdState.value.trim();
+      if (!city) { wdError.textContent = 'Please enter a city name.'; return; }
+      wdError.textContent = '';
+      wdSaveBtn.disabled  = true;
+      wdSaveBtn.innerHTML = '<span class="spinner" style="border-color:rgba(255,255,255,0.3);border-top-color:#fff;"></span>';
+      try {
+        await fetchAndShowWeather(city, state);
+        if (phone) {
+          await setDoc(doc(db, 'user_profiles', phone), { city, state, updatedAt: serverTimestamp() }, { merge: true });
+        }
+        weatherDropdown.classList.remove('open');
+      } catch(e) {
+        wdError.textContent = 'City not found or API key missing.';
+      } finally {
+        wdSaveBtn.disabled  = false;
+        wdSaveBtn.innerHTML = '<i class="ph ph-paper-plane-tilt"></i> Save &amp; Show Weather';
+      }
+    });
+
+    // Auto-load saved location from Firebase on page open
+    async function initWeather() {
+      if (!phone) return;
+      try {
+        const snap = await getDoc(doc(db, 'user_profiles', phone));
+        if (snap.exists()) {
+          const { city, state } = snap.data();
+          if (city) {
+            wdCity.value  = city;
+            wdState.value = state || '';
+            await fetchAndShowWeather(city, state);
+          }
+        }
+      } catch(e) { /* silent — API key may not be set yet */ }
+    }
+
+    initWeather();
+  </script>
+  <script>
+    const userName  = localStorage.getItem('jeevikaUserName');
+    const userPhone = localStorage.getItem('jeevikaUserPhone');
+
+    if (!userName) {
+      window.location.replace('index.html');
+    } else {
+      document.getElementById('userName').textContent = userName;
+
+      // Time-based greeting
+      const hour = new Date().getHours();
+      const lang = localStorage.getItem('jeevikaLang') || 'en';
+      let greeting;
+      if (lang === 'hi') {
+        greeting = hour < 12 ? 'सुप्रभात, ' : hour < 17 ? 'नमस्ते, ' : 'शुभ संध्या, ';
+      } else {
+        greeting = hour < 12 ? 'Good morning, ' : hour < 17 ? 'Good afternoon, ' : 'Good evening, ';
+      }
+      document.getElementById('heroGreeting').textContent = greeting + userName + ' 🌿';
+    }
+
+    document.getElementById('btnLogout').addEventListener('click', function () {
+      localStorage.removeItem('jeevikaUserName');
+      localStorage.removeItem('jeevikaUserPhone');
+      window.location.href = 'index.html';
+    });
+
+    // Scroll animations
+    const observer = new IntersectionObserver(
+      (entries) => entries.forEach(el => { if (el.isIntersecting) el.target.classList.add('visible'); }),
+      { threshold: 0.1 }
+    );
+    document.querySelectorAll('.fade-in-up').forEach(el => observer.observe(el));
+  </script>
+
+</body>
+</html>

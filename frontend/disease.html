@@ -1,0 +1,178 @@
+<!DOCTYPE html>
+<html lang="en" data-theme="light">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Disease Detection — Jeevika</title>
+  <link rel="stylesheet" href="style.css" />
+  <script src="https://unpkg.com/@phosphor-icons/web@2.1.1"></script>
+  <script src="theme.js"></script>
+  <style>
+    .result-panel { display: none; }
+    .result-panel.visible { display: block; }
+    .result-card {
+      background: var(--card-bg);
+      border: 1.5px solid var(--border);
+      border-radius: var(--radius-md);
+      padding: 1.25rem 1.5rem;
+      margin-top: 1rem;
+    }
+    .result-disease-name { font-family:'Plus Jakarta Sans',sans-serif; font-size:1.1rem; font-weight:700; color:var(--accent); margin-bottom:0.35rem; }
+    [data-theme="dark"] .result-disease-name { color:var(--accent-light); }
+    .result-confidence { font-size:0.82rem; color:var(--text-secondary); margin-bottom:0.5rem; }
+    .confidence-bar-wrap { background:var(--border); border-radius:999px; height:5px; margin-bottom:0.9rem; overflow:hidden; }
+    .confidence-bar-fill { height:100%; border-radius:999px; background:linear-gradient(90deg,var(--accent-pale),var(--accent)); transition:width 0.6s ease; }
+    .result-recommendation-label { font-size:0.75rem; font-weight:700; text-transform:uppercase; letter-spacing:0.06em; color:var(--accent); margin-bottom:0.3rem; }
+    [data-theme="dark"] .result-recommendation-label { color:var(--accent-light); }
+    .result-recommendation-text { font-size:0.9rem; line-height:1.55; color:var(--text-primary); }
+    .error-panel { display:none; background:rgba(185,64,64,0.08); border:1.5px solid rgba(185,64,64,0.25); border-radius:var(--radius-md); padding:1rem 1.25rem; margin-top:1rem; font-size:0.87rem; color:#b94040; }
+    .error-panel.visible { display:block; }
+    [data-theme="dark"] .error-panel { background:rgba(185,64,64,0.12); color:#f87171; }
+  </style>
+</head>
+<body>
+
+  <nav class="topbar">
+    <div style="display:flex;align-items:center;gap:0.75rem;">
+      <a href="dashboard.html" class="back-btn"><i class="ph ph-arrow-left"></i> <span data-key="backBtn">Back</span></a>
+      <span class="topbar-brand">
+        <i class="ph ph-stethoscope brand-icon"></i>
+        <span class="brand-text" data-key="diseaseTitle">Disease Detection</span>
+      </span>
+    </div>
+    <div class="topbar-right">
+      <button class="icon-btn" id="langToggle" data-key="langToggleLabel">हिंदी</button>
+      <button class="icon-btn" id="themeToggle"><i class="ph ph-moon"></i></button>
+    </div>
+  </nav>
+
+  <main class="page-container" style="max-width:680px;">
+
+    <h2 class="section-title heading-font" data-key="diseaseTitle">Disease Detection</h2>
+    <p class="section-subtitle" data-key="diseaseUploadInstruction">Upload a clear photo of the affected crop leaf</p>
+
+    <input type="file" id="fileInput" accept="image/*" style="display:none;" />
+
+    <div class="upload-box" id="uploadBox" role="button" tabindex="0" aria-label="Upload crop image">
+      <div id="uploadPlaceholder">
+        <i class="ph ph-leaf upload-icon" style="color:var(--accent-pale);"></i>
+        <div class="upload-main-text" data-key="diseaseDragDrop">Drag and drop your crop image here</div>
+        <div class="upload-sub-text" data-key="diseaseBrowse">or click to browse files</div>
+        <div class="upload-formats" data-key="diseaseFormats">Supported: JPG, PNG, JPEG</div>
+      </div>
+      <img id="previewImg" class="preview-img" src="" alt="Crop preview" style="display:none;" />
+    </div>
+
+    <div style="margin-top:1.25rem;">
+      <button class="btn btn-disabled btn-full" id="btnAnalyze" disabled data-key="diseaseAnalyzeBtn">
+        <i class="ph ph-microscope"></i> Analyze Crop Disease
+      </button>
+    </div>
+
+    <div class="error-panel" id="errorPanel"></div>
+
+    <div class="result-panel" id="resultPanel">
+      <div class="result-card">
+        <div class="result-disease-name" id="resultDiseaseName"></div>
+        <div class="result-confidence" id="resultConfidenceText"></div>
+        <div class="confidence-bar-wrap">
+          <div class="confidence-bar-fill" id="confidenceBar" style="width:0%"></div>
+        </div>
+        <div class="result-recommendation-label" data-key="diseaseRecommendationLabel">Treatment Recommendation</div>
+        <div class="result-recommendation-text" id="resultRecommendation"></div>
+      </div>
+    </div>
+
+    <div class="info-box" style="margin-top:1.5rem;">
+      <i class="ph ph-info info-icon" style="color:var(--accent-gold);"></i>
+      <span data-key="diseaseInfoNote">Make sure the disease detection backend is running at http://127.0.0.1:8000 before clicking Analyze.</span>
+    </div>
+
+  </main>
+
+  <script src="translations.js"></script>
+  <script src="config.js"></script>
+  <script>
+    const API_URL = 'http://127.0.0.1:8000/predict-image';
+
+    const uploadBox          = document.getElementById('uploadBox');
+    const fileInput          = document.getElementById('fileInput');
+    const previewImg         = document.getElementById('previewImg');
+    const uploadPlaceholder  = document.getElementById('uploadPlaceholder');
+    const btnAnalyze         = document.getElementById('btnAnalyze');
+    const resultPanel        = document.getElementById('resultPanel');
+    const errorPanel         = document.getElementById('errorPanel');
+    const resultDiseaseName  = document.getElementById('resultDiseaseName');
+    const resultConfText     = document.getElementById('resultConfidenceText');
+    const confidenceBar      = document.getElementById('confidenceBar');
+    const resultRecommendation = document.getElementById('resultRecommendation');
+
+    let selectedFile = null;
+
+    uploadBox.addEventListener('click', function () { fileInput.click(); });
+    uploadBox.addEventListener('keydown', function (e) { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); fileInput.click(); } });
+    fileInput.addEventListener('change', function () { if (fileInput.files && fileInput.files[0]) handleFile(fileInput.files[0]); });
+    uploadBox.addEventListener('dragover', function (e) { e.preventDefault(); uploadBox.classList.add('dragover'); });
+    uploadBox.addEventListener('dragleave', function () { uploadBox.classList.remove('dragover'); });
+    uploadBox.addEventListener('drop', function (e) {
+      e.preventDefault();
+      uploadBox.classList.remove('dragover');
+      const file = e.dataTransfer.files[0];
+      if (file && file.type.startsWith('image/')) handleFile(file);
+    });
+
+    function handleFile(file) {
+      selectedFile = file;
+      const reader = new FileReader();
+      reader.onload = function (e) {
+        previewImg.src = e.target.result;
+        previewImg.style.display = 'block';
+        uploadPlaceholder.style.display = 'none';
+      };
+      reader.readAsDataURL(file);
+      btnAnalyze.disabled = false;
+      btnAnalyze.classList.remove('btn-disabled');
+      btnAnalyze.classList.add('btn-primary');
+      resultPanel.classList.remove('visible');
+      errorPanel.classList.remove('visible');
+      errorPanel.textContent = '';
+    }
+
+    btnAnalyze.addEventListener('click', async function () {
+      if (!selectedFile) return;
+      const originalLabel = btnAnalyze.innerHTML;
+      btnAnalyze.disabled = true;
+      btnAnalyze.innerHTML = `<i class="ph ph-circle-notch" style="animation:spin 0.75s linear infinite;"></i> ${t('diseaseAnalyzing') || 'Analyzing...'}`;
+      resultPanel.classList.remove('visible');
+      errorPanel.classList.remove('visible');
+
+      try {
+        const formData = new FormData();
+        formData.append('file', selectedFile);
+        const response = await fetch(API_URL, { method: 'POST', body: formData });
+        if (!response.ok) throw new Error('server_error');
+        const data = await response.json();
+
+        resultDiseaseName.textContent = data.label || 'Unknown';
+        const pct = Math.round((data.confidence || 0) * 100);
+        resultConfText.textContent = (t('diseaseConfidence') || 'Confidence') + ': ' + pct + '%';
+        confidenceBar.style.width = pct + '%';
+        resultRecommendation.textContent = data.recommendation || '—';
+        resultPanel.classList.add('visible');
+      } catch (err) {
+        const isOffline = !err.message || err.message === 'Failed to fetch';
+        errorPanel.textContent = isOffline
+          ? (t('diseaseServerOffline') || 'Cannot reach the backend. Start it: cd disease_backend && uvicorn main:app --reload')
+          : (t('diseaseApiError') || 'Analysis failed. Please try again.');
+        errorPanel.classList.add('visible');
+      } finally {
+        btnAnalyze.disabled = false;
+        btnAnalyze.innerHTML = originalLabel;
+        btnAnalyze.classList.remove('btn-disabled');
+        btnAnalyze.classList.add('btn-primary');
+      }
+    });
+  </script>
+
+</body>
+</html>

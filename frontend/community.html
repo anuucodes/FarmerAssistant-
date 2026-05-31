@@ -1,0 +1,494 @@
+<!DOCTYPE html>
+<html lang="en" data-theme="light">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Farmer Community — Jeevika</title>
+  <link rel="stylesheet" href="style.css" />
+  <script src="https://unpkg.com/@phosphor-icons/web@2.1.1"></script>
+  <script src="theme.js"></script>
+  <!--
+    FIREBASE SETUP REQUIRED:
+    Before this page works, do the following in Firebase Console (console.firebase.google.com):
+
+    1. FIRESTORE: Enable Firestore Database in your project.
+       Set rules to allow read/write (for testing):
+       rules_version = '2';
+       service cloud.firestore {
+         match /databases/{database}/documents {
+           match /{document=**} { allow read, write: if true; }
+         }
+       }
+
+    2. STORAGE: Enable Firebase Storage in your project.
+       Set rules to allow read/write (for testing):
+       rules_version = '2';
+       service firebase.storage {
+         match /b/{bucket}/o {
+           match /{allPaths=**} { allow read, write: if true; }
+         }
+       }
+  -->
+</head>
+<body>
+
+  <nav class="topbar">
+    <div style="display:flex;align-items:center;gap:0.75rem;">
+      <a href="dashboard.html" class="back-btn"><i class="ph ph-arrow-left"></i> <span data-key="backBtn">Back</span></a>
+      <span class="topbar-brand">
+        <i class="ph ph-users-three brand-icon"></i>
+        <span class="brand-text" data-key="communityTitle">Farmer Community</span>
+      </span>
+    </div>
+    <div class="topbar-right">
+      <button class="icon-btn" id="langToggle" data-key="langToggleLabel">हिंदी</button>
+      <button class="icon-btn" id="themeToggle"><i class="ph ph-moon"></i></button>
+    </div>
+  </nav>
+
+  <main class="page-container" style="max-width:680px;">
+
+    <!-- Compose Card -->
+    <div class="compose-card" id="composeCard">
+      <div class="compose-top">
+        <div class="user-avatar" id="myAvatar" style="background:#4d7643;">JK</div>
+        <div class="compose-textarea-wrap">
+          <textarea
+            class="compose-textarea"
+            id="composeText"
+            rows="3"
+            data-placeholder-key="communityCompose"
+            placeholder="Share your farming experience or problem..."
+          ></textarea>
+          <div class="compose-image-preview" id="composeImagePreview" style="display:none;">
+            <img id="composePreviewImg" src="" alt="Preview" />
+            <button class="remove-img-btn" onclick="clearComposeImage()" title="Remove image">
+              <i class="ph ph-x"></i>
+            </button>
+          </div>
+        </div>
+      </div>
+
+      <div class="compose-divider"></div>
+
+      <div class="compose-bottom">
+        <div class="compose-left-actions">
+          <label class="compose-img-label" for="imageUploadInput">
+            <i class="ph ph-image"></i>
+            <span data-key="communityAddPhoto">Add Photo</span>
+          </label>
+          <input type="file" id="imageUploadInput" accept="image/*" style="display:none;" />
+
+          <select class="tag-select" id="composeTag">
+            <option value="problem"    data-key="communityTagProblem">Problem</option>
+            <option value="suggestion" data-key="communityTagSuggestion">Suggestion</option>
+            <option value="experience" data-key="communityTagExperience">Experience</option>
+            <option value="general"    data-key="communityTagGeneral">General</option>
+          </select>
+        </div>
+
+        <button class="btn btn-primary btn-sm" id="btnPost">
+          <i class="ph ph-paper-plane-tilt"></i>
+          <span id="btnPostText" data-key="communityPostBtn">Post</span>
+        </button>
+      </div>
+    </div>
+
+    <!-- Error message for community -->
+    <div class="error-msg" id="communityError" style="margin-bottom:1rem;"></div>
+
+    <!-- Feed loading state -->
+    <div class="loading-row" id="feedLoading">
+      <span class="spinner spinner-dark"></span>
+      <span style="margin-left:0.5rem;">Loading community posts...</span>
+    </div>
+
+    <!-- Posts feed -->
+    <div id="postsFeed"></div>
+
+    <!-- Empty feed state -->
+    <div class="empty-feed" id="emptyFeed" style="display:none;">
+      <i class="ph ph-plant"></i>
+      <p data-key="communityEmptyFeed">Be the first to post in the community!</p>
+    </div>
+
+  </main>
+
+  <script src="translations.js"></script>
+  <script src="config.js"></script>
+
+  <script type="module">
+    import { initializeApp }
+      from "https://www.gstatic.com/firebasejs/10.12.2/firebase-app.js";
+    import {
+      getFirestore, collection, addDoc, onSnapshot, query,
+      orderBy, serverTimestamp, doc, updateDoc, arrayUnion, arrayRemove,
+      getDoc, getDocs
+    } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js";
+    import {
+      getStorage, ref, uploadBytes, getDownloadURL
+    } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-storage.js";
+
+    // ── Init ──────────────────────────────────────────────
+    const app     = initializeApp(firebaseConfig);
+    const db      = getFirestore(app);
+    const storage = getStorage(app);
+
+    // ── Auth guard ────────────────────────────────────────
+    const myName  = localStorage.getItem('jeevikaUserName');
+    const myPhone = localStorage.getItem('jeevikaUserPhone');
+    if (!myName) { window.location.replace('index.html'); }
+
+    // ── Avatar helpers ────────────────────────────────────
+    const AVATAR_COLORS = ['#4d7643','#8a6b42','#3a6670','#6b4f3f','#4a5870','#5a4a70','#3d6060'];
+
+    function getAvatarColor(name) {
+      return AVATAR_COLORS[(name.charCodeAt(0) || 0) % AVATAR_COLORS.length];
+    }
+
+    function getInitials(name) {
+      return (name || '').split(' ').filter(Boolean).map(w => w[0]).join('').toUpperCase().slice(0, 2) || '??';
+    }
+
+    function timeAgo(ts) {
+      if (!ts) return 'just now';
+      const secs = Math.floor((Date.now() - ts.toMillis()) / 1000);
+      if (secs < 60)    return 'just now';
+      if (secs < 3600)  return Math.floor(secs / 60) + 'm ago';
+      if (secs < 86400) return Math.floor(secs / 3600) + 'h ago';
+      return Math.floor(secs / 86400) + 'd ago';
+    }
+
+    // ── Set up my avatar in compose card ─────────────────
+    const myAvatarEl = document.getElementById('myAvatar');
+    myAvatarEl.textContent       = getInitials(myName);
+    myAvatarEl.style.background  = getAvatarColor(myName);
+
+    // ── Compose: image upload ─────────────────────────────
+    let selectedComposeFile = null;
+    const imageUploadInput    = document.getElementById('imageUploadInput');
+    const composeImagePreview = document.getElementById('composeImagePreview');
+    const composePreviewImg   = document.getElementById('composePreviewImg');
+
+    imageUploadInput.addEventListener('change', function () {
+      const file = this.files[0];
+      if (!file) return;
+      selectedComposeFile = file;
+      const reader = new FileReader();
+      reader.onload = (e) => {
+        composePreviewImg.src = e.target.result;
+        composeImagePreview.style.display = 'block';
+      };
+      reader.readAsDataURL(file);
+    });
+
+    window.clearComposeImage = function () {
+      selectedComposeFile = null;
+      composePreviewImg.src = '';
+      composeImagePreview.style.display = 'none';
+      imageUploadInput.value = '';
+    };
+
+    // ── Image compression ─────────────────────────────────
+    async function compressImage(file, maxWidth = 900, quality = 0.78) {
+      return new Promise((resolve) => {
+        const canvas = document.createElement('canvas');
+        const ctx    = canvas.getContext('2d');
+        const img    = new Image();
+        img.onload = () => {
+          const scale  = Math.min(1, maxWidth / img.width);
+          canvas.width  = img.width  * scale;
+          canvas.height = img.height * scale;
+          ctx.drawImage(img, 0, 0, canvas.width, canvas.height);
+          canvas.toBlob((blob) => resolve(blob), 'image/jpeg', quality);
+        };
+        img.src = URL.createObjectURL(file);
+      });
+    }
+
+    // ── Submit post ───────────────────────────────────────
+    const btnPost     = document.getElementById('btnPost');
+    const btnPostText = document.getElementById('btnPostText');
+    const composeText = document.getElementById('composeText');
+    const composeTag  = document.getElementById('composeTag');
+    const communityError = document.getElementById('communityError');
+
+    btnPost.addEventListener('click', async function () {
+      const text = composeText.value.trim();
+      if (!text) {
+        communityError.textContent = t('communityErrEmpty') || 'Please write something before posting.';
+        communityError.classList.add('visible');
+        composeText.focus();
+        return;
+      }
+      communityError.classList.remove('visible');
+
+      btnPost.disabled      = true;
+      btnPostText.textContent = t('communityPosting') || 'Posting...';
+
+      let imageUrl = '';
+
+      // Upload image if selected
+      if (selectedComposeFile) {
+        try {
+          const compressed = await compressImage(selectedComposeFile);
+          const imgRef     = ref(storage, `community-images/${Date.now()}_${Math.random().toString(36).slice(2)}.jpg`);
+          await uploadBytes(imgRef, compressed);
+          imageUrl = await getDownloadURL(imgRef);
+        } catch (imgErr) {
+          console.warn('Image upload failed (continuing without image):', imgErr);
+          imageUrl = '';
+        }
+      }
+
+      try {
+        await addDoc(collection(db, 'community_posts'), {
+          userName:  myName,
+          userPhone: myPhone || '',
+          text:      text,
+          imageUrl:  imageUrl,
+          tag:       composeTag.value,
+          timestamp: serverTimestamp(),
+          likes:     []
+        });
+
+        // Reset compose
+        composeText.value = '';
+        clearComposeImage();
+        composeTag.value = 'problem';
+      } catch (err) {
+        console.error('Failed to post:', err);
+        communityError.textContent = 'Failed to post. Please check your Firebase configuration.';
+        communityError.classList.add('visible');
+      } finally {
+        btnPost.disabled        = false;
+        btnPostText.textContent = t('communityPostBtn') || 'Post';
+      }
+    });
+
+    // ── Real-time feed listener ───────────────────────────
+    const postsFeed  = document.getElementById('postsFeed');
+    const emptyFeed  = document.getElementById('emptyFeed');
+    const feedLoading = document.getElementById('feedLoading');
+    const replyListeners = {};
+
+    const postsQuery = query(collection(db, 'community_posts'), orderBy('timestamp', 'desc'));
+
+    onSnapshot(postsQuery, function (snapshot) {
+      feedLoading.style.display = 'none';
+
+      if (snapshot.empty) {
+        postsFeed.innerHTML = '';
+        emptyFeed.style.display = 'block';
+        return;
+      }
+      emptyFeed.style.display = 'none';
+
+      snapshot.docChanges().forEach(function (change) {
+        const postId = change.doc.id;
+        const data   = change.doc.data();
+
+        if (change.type === 'added') {
+          const el = createPostCard(postId, data);
+          postsFeed.prepend(el);
+        } else if (change.type === 'modified') {
+          const existing = document.getElementById('post-' + postId);
+          if (existing) {
+            // Only update like count and button state (avoid full re-render which collapses comments)
+            const isLiked       = (data.likes || []).includes(myPhone || '');
+            const likeCount     = (data.likes || []).length;
+            const likeBtn       = existing.querySelector('.like-btn');
+            const likeCountEl   = existing.querySelector('.like-count');
+            if (likeBtn)     { likeBtn.classList.toggle('liked', isLiked); likeBtn.querySelector('i').className = isLiked ? 'ph ph-heart-fill' : 'ph ph-heart'; }
+            if (likeCountEl) { likeCountEl.textContent = likeCount > 0 ? likeCount : ''; }
+          }
+        } else if (change.type === 'removed') {
+          const existing = document.getElementById('post-' + postId);
+          if (existing) existing.remove();
+        }
+      });
+    }, function (err) {
+      feedLoading.style.display = 'none';
+      console.error('Feed error:', err);
+      postsFeed.innerHTML = '<p style="text-align:center;padding:2rem;color:var(--text-secondary);">Could not load posts. Check Firebase configuration.</p>';
+    });
+
+    // ── Build post card DOM ───────────────────────────────
+    function createPostCard(postId, data) {
+      const isLiked      = (data.likes || []).includes(myPhone || '');
+      const likeCount    = (data.likes || []).length;
+      const color        = getAvatarColor(data.userName || '?');
+      const initials     = getInitials(data.userName || '?');
+      const timeStr      = timeAgo(data.timestamp);
+      const tagClass     = 'tag-' + (data.tag || 'general');
+      const tagLabel     = t('communityTag' + capitalise(data.tag || 'general')) || data.tag;
+
+      const el = document.createElement('div');
+      el.className = 'post-card';
+      el.id = 'post-' + postId;
+
+      el.innerHTML = `
+        <div class="post-header">
+          <div class="user-avatar" style="background:${color};">${initials}</div>
+          <div class="post-meta">
+            <span class="post-author">${escHtml(data.userName || 'Farmer')}</span>
+            <span class="post-time">${timeStr}</span>
+          </div>
+          <span class="post-tag ${tagClass}">${tagLabel}</span>
+        </div>
+        ${data.imageUrl ? `<img class="post-image" src="${escHtml(data.imageUrl)}" alt="Post image" loading="lazy" />` : ''}
+        <p class="post-text">${escHtml(data.text || '')}</p>
+        <div class="post-actions">
+          <button class="action-btn like-btn ${isLiked ? 'liked' : ''}" data-id="${postId}">
+            <i class="ph ${isLiked ? 'ph-heart-fill' : 'ph-heart'}"></i>
+            <span class="like-count">${likeCount > 0 ? likeCount : ''}</span>
+          </button>
+          <button class="action-btn reply-toggle-btn" data-id="${postId}">
+            <i class="ph ph-chat-dots"></i>
+            <span data-key="communityRepliesBtn">Reply</span>
+          </button>
+        </div>
+        <div class="comments-section" id="comments-section-${postId}" style="display:none;">
+          <div class="comments-list" id="comments-list-${postId}">
+            <div style="text-align:center;padding:0.75rem;color:var(--text-secondary);font-size:0.85rem;">
+              <span class="spinner spinner-dark"></span> Loading replies...
+            </div>
+          </div>
+          <div class="reply-form">
+            <div class="user-avatar" style="background:${color};width:30px;height:30px;font-size:0.68rem;">${initials}</div>
+            <input class="reply-input" id="reply-input-${postId}" type="text" placeholder="${t('communityReplyPlaceholder') || 'Write a reply...'}" />
+            <button class="reply-send-btn" data-id="${postId}">
+              <i class="ph ph-paper-plane-tilt"></i>
+            </button>
+          </div>
+        </div>
+      `;
+
+      // Like button
+      el.querySelector('.like-btn').addEventListener('click', function () {
+        toggleLike(postId, isLiked);
+      });
+
+      // Toggle comments
+      el.querySelector('.reply-toggle-btn').addEventListener('click', function () {
+        toggleComments(postId);
+      });
+
+      // Send reply
+      el.querySelector('.reply-send-btn').addEventListener('click', function () {
+        sendReply(postId);
+      });
+
+      el.querySelector(`#reply-input-${postId}`).addEventListener('keydown', function (e) {
+        if (e.key === 'Enter') sendReply(postId);
+      });
+
+      return el;
+    }
+
+    // ── Toggle like ───────────────────────────────────────
+    async function toggleLike(postId, currentlyLiked) {
+      if (!myPhone) return;
+      const postRef = doc(db, 'community_posts', postId);
+      try {
+        await updateDoc(postRef, {
+          likes: currentlyLiked ? arrayRemove(myPhone) : arrayUnion(myPhone)
+        });
+      } catch (err) { console.error('Like failed:', err); }
+    }
+
+    // ── Toggle comment section ────────────────────────────
+    function toggleComments(postId) {
+      const section = document.getElementById('comments-section-' + postId);
+      const isOpen  = section.style.display !== 'none';
+
+      if (isOpen) {
+        section.style.display = 'none';
+        if (replyListeners[postId]) { replyListeners[postId](); delete replyListeners[postId]; }
+      } else {
+        section.style.display = 'block';
+        loadReplies(postId);
+      }
+    }
+
+    // ── Load replies (real-time) ──────────────────────────
+    function loadReplies(postId) {
+      if (replyListeners[postId]) return; // already listening
+
+      const repliesRef = collection(db, 'community_posts', postId, 'replies');
+      const q = query(repliesRef, orderBy('timestamp', 'asc'));
+
+      const unsub = onSnapshot(q, function (snap) {
+        const listEl = document.getElementById('comments-list-' + postId);
+        if (!listEl) return;
+        listEl.innerHTML = '';
+
+        if (snap.empty) {
+          listEl.innerHTML = `<p style="text-align:center;padding:0.75rem 1.25rem;color:var(--text-secondary);font-size:0.85rem;">${t('communityNoReplies') || 'No replies yet. Be the first!'}</p>`;
+          return;
+        }
+
+        snap.forEach(function (replyDoc) {
+          const r = replyDoc.data();
+          const color    = getAvatarColor(r.userName || '?');
+          const initials = getInitials(r.userName || '?');
+          const timeStr  = timeAgo(r.timestamp);
+
+          const item = document.createElement('div');
+          item.className = 'comment-item';
+          item.innerHTML = `
+            <div class="comment-avatar" style="background:${color};">${initials}</div>
+            <div class="comment-bubble">
+              <div class="comment-author">${escHtml(r.userName || 'Farmer')}</div>
+              <div class="comment-text">${escHtml(r.text || '')}</div>
+              <div class="comment-time">${timeStr}</div>
+            </div>
+          `;
+          listEl.appendChild(item);
+        });
+      }, function (err) {
+        console.error('Replies error:', err);
+      });
+
+      replyListeners[postId] = unsub;
+    }
+
+    // ── Send reply ────────────────────────────────────────
+    async function sendReply(postId) {
+      const input = document.getElementById('reply-input-' + postId);
+      const text  = (input.value || '').trim();
+      if (!text) return;
+
+      input.value    = '';
+      input.disabled = true;
+
+      try {
+        await addDoc(collection(db, 'community_posts', postId, 'replies'), {
+          userName:  myName,
+          userPhone: myPhone || '',
+          text:      text,
+          timestamp: serverTimestamp()
+        });
+      } catch (err) {
+        console.error('Reply failed:', err);
+        input.value = text; // restore on failure
+      } finally {
+        input.disabled = false;
+        input.focus();
+      }
+    }
+
+    // ── Utilities ─────────────────────────────────────────
+    function escHtml(str) {
+      const div = document.createElement('div');
+      div.appendChild(document.createTextNode(str));
+      return div.innerHTML;
+    }
+
+    function capitalise(str) {
+      return str ? str.charAt(0).toUpperCase() + str.slice(1) : '';
+    }
+  </script>
+
+</body>
+</html>
